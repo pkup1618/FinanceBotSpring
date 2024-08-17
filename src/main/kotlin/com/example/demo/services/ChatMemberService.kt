@@ -6,7 +6,6 @@ import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.expression.ExpressionException
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource
-import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
@@ -27,7 +26,7 @@ class ChatMemberService @Autowired constructor(
     @Transactional
     fun changeLocale(id: Long, locale: String) {
 
-        val prettySql: String =
+        val prettySql =
             """
             UPDATE chat_member
             SET locale = '$locale'
@@ -40,7 +39,7 @@ class ChatMemberService @Autowired constructor(
     @Transactional
     fun exist(id: Long): Boolean {
 
-        val prettySql: String =
+        val prettySql =
             """
             SELECT * FROM chat_member WHERE id = $id
             """
@@ -59,30 +58,21 @@ class ChatMemberService @Autowired constructor(
      */
     @Transactional
     fun save(chatMember: ChatMember) {
-        /*
-        if (!chatMemberRepository.existsById(chatMember.id)) {
-        chatMember.locale = "ru"
-        chatMemberRepository.save(chatMember)
-        }
-        */
-
-        val prettySql: String =
+        val prettySql =
             """
             INSERT INTO chat_member VALUES (${chatMember.id}, 'ru') 
-            """ // todo bad
+            """
 
         jdbcTemplate.update(prettySql)
     }
 
     fun getChatMemberHabits(id: Long): List<Habit> {
 
-        val prettySql: String =
+        val prettySql =
             """
-            "SELECT * FROM habit 
-            WHERE chatmember_id = ?"
+            SELECT * FROM habit 
+            WHERE chatmember_id = $id
             """
-
-        val namedParameters = MapSqlParameterSource("id", id)
 
         val habits: List<Habit> = jdbcTemplate.query(prettySql)
         { rs, _ ->
@@ -103,7 +93,7 @@ class ChatMemberService @Autowired constructor(
      */
     fun findById(id: Long): ChatMember {
 
-        val prettySql: String =
+        val prettySql =
             """
             SELECT * FROM chat_member
             WHERE id = $id
@@ -115,6 +105,5 @@ class ChatMemberService @Autowired constructor(
         }
 
         return chatMember ?: throw ExpressionException("Такая запись отсутствует в базе данных")
-        // TODO handle exception
     }
 }
