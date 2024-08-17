@@ -23,7 +23,7 @@ class MessageHandler @Autowired constructor(
     private val localeService: LocaleService
 ) : Thread() {
 
-    private val userStates: MutableMap<Long, UserState> = ConcurrentHashMap()
+    private val userStates: MutableMap<Long, UserStateContainer> = ConcurrentHashMap()
 
 
     //TODO change on timer task
@@ -74,7 +74,7 @@ class MessageHandler @Autowired constructor(
             saveUserInfo(userId)
         }
 
-        userStates.putIfAbsent(userId, UserState.UNNECESSARY)
+        userStates.putIfAbsent(userId, UserStateContainer())
         val locale = chatMemberService.findById(userId).locale
 
 
@@ -82,46 +82,46 @@ class MessageHandler @Autowired constructor(
             when (parseCommand(update)) {
                 BotCommands.START -> {
                     sendMessage(userId, locale, "startMessage")
-                    userStates.replace(userId, UserState.UNNECESSARY)
+                    userStates[userId]?.changeState(UserState.UNNECESSARY)
                 }
 
                 BotCommands.HELP -> {
                     sendMessage(userId, locale, "helpMessage")
-                    userStates.replace(userId, UserState.UNNECESSARY)
+                    userStates[userId]?.changeState(UserState.UNNECESSARY)
                 }
 
                 BotCommands.LOCALE -> {
                     sendChangeLocaleMessage(userId, locale)
-                    userStates.replace(userId, UserState.UNNECESSARY)
+                    userStates[userId]?.changeState(UserState.UNNECESSARY)
                 }
 
                 BotCommands.SET_RU_LOCALE -> {
                     changeLocale(userId, "ru")
                     var newLocale = "ru"
                     sendMessage(userId, newLocale, "locale.changeSuccess")
-                    userStates.replace(userId, UserState.UNNECESSARY)
+                    userStates[userId]?.changeState(UserState.UNNECESSARY)
                 }
 
                 BotCommands.SET_EN_LOCALE -> {
                     changeLocale(userId, "en")
                     var newLocale = "en"
                     sendMessage(userId, locale, "locale.changeSuccess")
-                    userStates.replace(userId, UserState.UNNECESSARY)
+                    userStates[userId]?.changeState(UserState.UNNECESSARY)
                 }
 
                 BotCommands.MENU -> {
                     sendMenuMessage(userId, locale)
-                    userStates.replace(userId, UserState.UNNECESSARY)
+                    userStates[userId]?.changeState(UserState.UNNECESSARY)
                 }
 
                 BotCommands.MY_HABITS -> {
                     sendHabits(userId, locale)
-                    userStates.replace(userId, UserState.UNNECESSARY)
+                    userStates[userId]?.changeState(UserState.UNNECESSARY)
                 }
 
                 BotCommands.ADD_HABIT -> {
                     sendHabitAdditionForm(userId, locale)
-                    userStates.replace(userId, UserState.ADDING_HABIT)
+                    userStates[userId]?.changeState(UserState.ADDING_HABIT_HEADER)
                 }
 
                 BotCommands.REMOVE_HABIT -> TODO()
@@ -134,14 +134,20 @@ class MessageHandler @Autowired constructor(
                 BotCommands.UNKNOWN -> TODO()
             }
         } else {
-            when (userStates[userId]) {
+            when (userStates[userId]?.userState) {
                 UserState.UNNECESSARY -> {
                     handleLikeEcho(message)
-                    userStates.replace(userId, UserState.UNNECESSARY)
+                    userStates[userId]?.changeState(UserState.UNNECESSARY)
                 }
 
-                UserState.ADDING_HABIT -> {
-                    parseHabit(message)
+                UserState.ADDING_HABIT_HEADER -> {
+                    parseHabitHeader(message)
+                    userStates[userId]?.changeState(UserState.ADDING_HABIT_BODY)
+                }
+
+                UserState.ADDING_HABIT_BODY -> {
+                    parseHabitDescription(message)
+                    userStates[userId]?.changeState(UserState.UNNECESSARY)
                 }
 
                 null -> TODO()
@@ -149,9 +155,27 @@ class MessageHandler @Autowired constructor(
         }
     }
 
-    private fun parseHabit(message: Message) {
-        val text = message.text
-        val fieldsAndValues = text.split(";".toRegex()).dropLastWhile { it.isEmpty() }.toTypedArray()
+    private fun parseHabitHeader(message: Message) {
+        userStates[message.chatId]?.habitHeader = message.text
+        userStates[message.chatId]?.userState = UserState.ADDING_HABIT_BODY
+
+        val text =
+            """
+            Теперь отправьте только описание привычки
+            """
+
+        val answer = SendMessage()
+        answer.setChatId(message.chatId)
+        answer.text = text
+
+        bot.execute(answer)
+    }
+
+    private fun parseHabitDescription(message: Message) {
+        userStates[message.chatId]?.habitDescription = message.text
+        userStates[message.chatId]?.userState = UserState.UNNECESSARY
+
+        chatMemberService.addHabit(message.chatId, userStates[message.chatId])
     }
 
     private fun saveUserInfo(id: Long) {
@@ -272,16 +296,17 @@ class MessageHandler @Autowired constructor(
     }
 
     private fun sendHabitAdditionForm(userId: Long, locale: String) {
-        val text = """
-                Для того, чтобы добавить новую привычку, введите данные, заполнив форму:
-                
-                Название - название;
-                Описание - описание;
-                
-                """.trimIndent()
+        val text =
+"""
+Для того, чтобы добавить новую привычку, поочерёдно введите её название и описание
+
+В данном сообщении отправтье только название привычки
+"""
         val message = SendMessage()
         message.setChatId(userId)
         message.text = text
+
+        bot.execute(message)
     }
 
     private fun parseCommand(update: Update): BotCommands {

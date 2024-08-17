@@ -106,4 +106,15 @@ class ChatMemberService @Autowired constructor(
 
         return chatMember ?: throw ExpressionException("Такая запись отсутствует в базе данных")
     }
+
+    fun addHabit(id: Long, userStateContainer: UserStateContainer?) {
+
+        val prettySql =
+            """
+            INSERT INTO habit (chatmember_id, days, description, name) 
+            VALUES ($id, NULL, '${userStateContainer?.habitDescription}', '${userStateContainer?.habitHeader}')    
+            """
+
+        jdbcTemplate.update(prettySql)
+    }
 }
