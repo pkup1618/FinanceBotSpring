@@ -15,7 +15,6 @@ class PropertiesService {
             properties.load(FileInputStream(propsDir))
         } catch (e: FileNotFoundException) {
             e.printStackTrace()
-            //todo как-то уведомить пользователя о необходимости создать файл свойств
         } catch (e: IOException) {
             e.printStackTrace()
         }
