@@ -124,6 +124,11 @@ class MessageHandler @Autowired constructor(
                     userStates[userId]?.changeState(UserState.ADDING_HABIT_HEADER)
                 }
 
+                BotCommands.REMOVE_HABIT -> {
+                    sendHabitRemovementForm(message)
+                    userStates[userId]?.changeState(UserState.DELETING_HABIT)
+                }
+
                 BotCommands.REMOVE_HABIT -> TODO()
                 BotCommands.EDIT_HABIT -> TODO()
                 BotCommands.STATS_TODAY -> TODO()
@@ -150,9 +155,32 @@ class MessageHandler @Autowired constructor(
                     userStates[userId]?.changeState(UserState.UNNECESSARY)
                 }
 
+                UserState.DELETING_HABIT -> {
+                    parseHabitName(message)
+                    userStates[userId]?.changeState(UserState.UNNECESSARY)
+                }
+
                 null -> TODO()
             }
         }
+    }
+
+
+
+    private fun sendHabitRemovementForm(message: Message) {
+        val text =
+"""
+Для того, чтобы удалить привычку, введите название привычки.  
+
+Привычка с данным названием будет удалена
+"""
+        val answer = SendMessage()
+        answer.setChatId(message.chatId)
+        answer.text = text
+
+        bot.execute(answer)
+
+        sendHabits(message.chatId, locale = "ru")
     }
 
     private fun parseHabitHeader(message: Message) {
@@ -176,6 +204,17 @@ class MessageHandler @Autowired constructor(
         userStates[message.chatId]?.userState = UserState.UNNECESSARY
 
         chatMemberService.addHabit(message.chatId, userStates[message.chatId])
+    }
+
+    private fun parseHabitName(message: Message?) {
+        val habitName = message!!.text
+        chatMemberService.deleteHabitByName(message.chatId, habitName)
+
+        val answer = SendMessage()
+        answer.setChatId(message.chatId)
+        answer.text = "Привычка удалена"
+
+        bot.execute(answer)
     }
 
     private fun saveUserInfo(id: Long) {
@@ -277,6 +316,8 @@ class MessageHandler @Autowired constructor(
             e.printStackTrace()
         }
     }
+
+
 
     private fun sendHabits(userId: Long, locale: String) {
         val habits = chatMemberService.getChatMemberHabits(userId)

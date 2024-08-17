@@ -117,4 +117,15 @@ class ChatMemberService @Autowired constructor(
 
         jdbcTemplate.update(prettySql)
     }
+
+    fun deleteHabitByName(id: Long?, name: String?) {
+
+        val prettySql =
+            """
+            DELETE FROM habit
+            WHERE chatmember_id = $id AND name = '$name'
+            """
+
+        jdbcTemplate.update(prettySql)
+    }
 }
