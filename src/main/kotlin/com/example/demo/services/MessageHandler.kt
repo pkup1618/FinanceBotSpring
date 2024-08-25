@@ -3,6 +3,7 @@ package com.example.demo.services
 import com.example.demo.bot.Bot
 import com.example.demo.entity.ChatMember
 import com.example.demo.entity.Habit
+import com.example.demo.services.UserState.*
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Autowired
@@ -82,51 +83,51 @@ class MessageHandler @Autowired constructor(
             when (parseCommand(update)) {
                 BotCommands.START -> {
                     sendMessage(userId, locale, "startMessage")
-                    userStates[userId]?.changeState(UserState.UNNECESSARY)
+                    userStates[userId]?.changeState(UNNECESSARY)
                 }
 
                 BotCommands.HELP -> {
                     sendMessage(userId, locale, "helpMessage")
-                    userStates[userId]?.changeState(UserState.UNNECESSARY)
+                    userStates[userId]?.changeState(UNNECESSARY)
                 }
 
                 BotCommands.LOCALE -> {
                     sendChangeLocaleMessage(userId, locale)
-                    userStates[userId]?.changeState(UserState.UNNECESSARY)
+                    userStates[userId]?.changeState(UNNECESSARY)
                 }
 
                 BotCommands.SET_RU_LOCALE -> {
                     changeLocale(userId, "ru")
                     var newLocale = "ru"
                     sendMessage(userId, newLocale, "locale.changeSuccess")
-                    userStates[userId]?.changeState(UserState.UNNECESSARY)
+                    userStates[userId]?.changeState(UNNECESSARY)
                 }
 
                 BotCommands.SET_EN_LOCALE -> {
                     changeLocale(userId, "en")
                     var newLocale = "en"
                     sendMessage(userId, locale, "locale.changeSuccess")
-                    userStates[userId]?.changeState(UserState.UNNECESSARY)
+                    userStates[userId]?.changeState(UNNECESSARY)
                 }
 
                 BotCommands.MENU -> {
                     sendMenuMessage(userId, locale)
-                    userStates[userId]?.changeState(UserState.UNNECESSARY)
+                    userStates[userId]?.changeState(UNNECESSARY)
                 }
 
                 BotCommands.MY_HABITS -> {
                     sendHabits(userId, locale)
-                    userStates[userId]?.changeState(UserState.UNNECESSARY)
+                    userStates[userId]?.changeState(UNNECESSARY)
                 }
 
                 BotCommands.ADD_HABIT -> {
                     sendHabitAdditionForm(userId, locale)
-                    userStates[userId]?.changeState(UserState.ADDING_HABIT_HEADER)
+                    userStates[userId]?.changeState(ADDING_HABIT_HEADER)
                 }
 
                 BotCommands.REMOVE_HABIT -> {
                     sendHabitRemovementForm(message)
-                    userStates[userId]?.changeState(UserState.DELETING_HABIT)
+                    userStates[userId]?.changeState(DELETING_HABIT)
                 }
 
                 BotCommands.REMOVE_HABIT -> TODO()
@@ -140,30 +141,37 @@ class MessageHandler @Autowired constructor(
             }
         } else {
             when (userStates[userId]?.userState) {
-                UserState.UNNECESSARY -> {
+                UNNECESSARY -> {
                     handleLikeEcho(message)
-                    userStates[userId]?.changeState(UserState.UNNECESSARY)
+                    userStates[userId]?.changeState(UNNECESSARY)
                 }
 
-                UserState.ADDING_HABIT_HEADER -> {
+                ADDING_HABIT_HEADER -> {
                     parseHabitHeader(message)
-                    userStates[userId]?.changeState(UserState.ADDING_HABIT_BODY)
+                    userStates[userId]?.changeState(ADDING_HABIT_BODY)
                 }
 
-                UserState.ADDING_HABIT_BODY -> {
+                ADDING_HABIT_BODY -> {
                     parseHabitDescription(message)
-                    userStates[userId]?.changeState(UserState.UNNECESSARY)
+                    userStates[userId]?.changeState(ADDING_HABIT_NOTIFICATION_CRON)
                 }
 
-                UserState.DELETING_HABIT -> {
+                ADDING_HABIT_NOTIFICATION_CRON -> {
+                    parseHabitNotificationCron(message)
+                    userStates[userId]?.changeState(UNNECESSARY)
+                }
+
+                DELETING_HABIT -> {
                     parseHabitName(message)
-                    userStates[userId]?.changeState(UserState.UNNECESSARY)
+                    userStates[userId]?.changeState(UNNECESSARY)
                 }
 
                 null -> TODO()
+
             }
         }
     }
+
 
 
 
@@ -185,7 +193,7 @@ class MessageHandler @Autowired constructor(
 
     private fun parseHabitHeader(message: Message) {
         userStates[message.chatId]?.habitHeader = message.text
-        userStates[message.chatId]?.userState = UserState.ADDING_HABIT_BODY
+        userStates[message.chatId]?.userState = ADDING_HABIT_BODY
 
         val text =
             """
@@ -201,18 +209,47 @@ class MessageHandler @Autowired constructor(
 
     private fun parseHabitDescription(message: Message) {
         userStates[message.chatId]?.habitDescription = message.text
-        userStates[message.chatId]?.userState = UserState.UNNECESSARY
+        userStates[message.chatId]?.userState = ADDING_HABIT_BODY
 
-        chatMemberService.addHabit(message.chatId, userStates[message.chatId])
+        val text =
+            """
+            Теперь отправьте время отправки привычки в формате CRON
+            
+            СЕК МИН ЧАС МЕС ГОД ДЕНЬНЕ_ДЕЛИ
+            """
+
+        val answer = SendMessage()
+        answer.setChatId(message.chatId)
+        answer.text = text
+
+        bot.execute(answer)
     }
 
-    private fun parseHabitName(message: Message?) {
-        val habitName = message!!.text
+    private fun parseHabitNotificationCron(message: Message) {
+
+        userStates[message.chatId]?.notifictaionCron = message.text
+        userStates[message.chatId]?.userState = ADDING_HABIT_BODY
+
+        chatMemberService.addHabit(message.chatId, userStates[message.chatId])
+
+        val text = "привычка сохранена"
+
+        val answer = SendMessage()
+        answer.setChatId(message.chatId)
+        answer.text = text
+
+        bot.execute(answer)
+    }
+
+    private fun parseHabitName(message: Message) {
+        val habitName = message.text
         chatMemberService.deleteHabitByName(message.chatId, habitName)
 
         val answer = SendMessage()
         answer.setChatId(message.chatId)
-        answer.text = "Привычка удалена"
+        answer.text = """
+            Привычка удалена
+        """.trimIndent()
 
         bot.execute(answer)
     }

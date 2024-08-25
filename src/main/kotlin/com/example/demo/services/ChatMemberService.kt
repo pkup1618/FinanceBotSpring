@@ -87,6 +87,28 @@ class ChatMemberService @Autowired constructor(
         return habits
     }
 
+    fun getAllTrackingHabits(): List<Habit> {
+
+        val prettySql =
+            """
+            SELECT * FROM habit 
+            WHERE notification_cron IS NOT NULL
+            """
+
+        val habits: List<Habit> = jdbcTemplate.query(prettySql)
+        { rs, _ ->
+            Habit(
+                rs.getLong("id"),
+                rs.getLong("chatmember_id"),
+                rs.getString("name"),
+                rs.getString("description"),
+                rs.getString("notification_cron")
+            )
+        }
+
+        return habits
+    }
+
     /**
      * Метод для поиска пользователя в базе данных
      * @param id - id пользователя
@@ -111,8 +133,8 @@ class ChatMemberService @Autowired constructor(
 
         val prettySql =
             """
-            INSERT INTO habit (chatmember_id, days, description, name) 
-            VALUES ($id, NULL, '${userStateContainer?.habitDescription}', '${userStateContainer?.habitHeader}')    
+            INSERT INTO habit (chatmember_id, days, description, name, notification_cron) 
+            VALUES ($id, NULL, '${userStateContainer?.habitDescription}', '${userStateContainer?.habitHeader}', '${userStateContainer?.notifictaionCron}')    
             """
 
         jdbcTemplate.update(prettySql)

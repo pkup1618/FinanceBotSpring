@@ -5,7 +5,7 @@ class UserStateContainer {
 
     var habitHeader: String? = null
     var habitDescription: String? = null
-    // h days
+    var notifictaionCron: String? = null
 
     fun changeState(userState: UserState) {
         this.userState = userState
