@@ -11,9 +11,9 @@ import org.springframework.stereotype.Component
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage
 import org.telegram.telegrambots.meta.api.objects.Message
 import org.telegram.telegrambots.meta.api.objects.Update
-import org.telegram.telegrambots.meta.api.objects.replykeyboard.ReplyKeyboardMarkup
-import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.KeyboardButton
-import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.KeyboardRow
+import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup
+import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKeyboardButton
+
 import java.util.concurrent.ConcurrentHashMap
 import java.util.stream.Collectors
 
@@ -48,29 +48,99 @@ class MessageHandler @Autowired constructor(
         }
     }
 
+    private fun processMessage(update: Update) {
+        if (update.hasCallbackQuery())
+            processInline(update)
+        else if (update.hasMessage() && update.message.isCommand)
+            processCommand(update)
+        else (processMultiformTask(update))
+    }
+
     private fun processInline(update: Update) {
         if (update.hasCallbackQuery()) {
             val callback = update.callbackQuery
             val userId = callback.from.id
-            println(userId)
+
+            log.run {
+                info("RECEIVED CALLBACK MESSAGE!")
+                info("userId : {}", userId)
+                info("\n")
+            }
 
             if (chatMemberService.exist(userId)) {
                 saveUserInfo(userId)
             }
 
             userStates.putIfAbsent(userId, UserStateContainer())
-
             val requestMessage = callback.message
 
-            when (requestMessage.text) {
+            when (callback.data) {
                 BotCommands.START.command -> {
-                    sendMessage(requestMessage.chatId, "Добро пожаловать")
+                    sendStartMessage(requestMessage)
                     userStates[userId]?.changeState(UNNECESSARY)
                 }
 
                 BotCommands.HELP.command -> {
                     userStates[userId]?.changeState(UNNECESSARY)
-                    sendMessage(requestMessage.chatId, "Используйте кнопки")
+                    sendHelpMessage(requestMessage)
+                }
+
+                BotCommands.MENU.command -> {
+                    sendMenuMessage(requestMessage)
+                    userStates[userId]?.changeState(UNNECESSARY)
+                }
+
+                BotCommands.MY_HABITS.command -> {
+                    sendHabits(requestMessage)
+                    userStates[userId]?.changeState(UNNECESSARY)
+                }
+
+                BotCommands.ADD_HABIT.command -> {
+                    sendHabitAdditionForm(requestMessage)
+                    userStates[userId]?.changeState(ADDING_HABIT_HEADER)
+                }
+
+                BotCommands.REMOVE_HABIT.command -> {
+                    sendHabitRemovementForm(requestMessage)
+                    userStates[userId]?.changeState(DELETING_HABIT)
+                }
+
+                BotCommands.EDIT_HABIT.command -> TODO()
+                BotCommands.STATS_TODAY.command -> TODO()
+                BotCommands.STATS_YESTERDAY.command -> TODO()
+                BotCommands.NOTIFICATIONS.command -> TODO()
+                BotCommands.NOTIFICATIONS_ENABLE.command -> TODO()
+                BotCommands.NOTIFICATIONS_DISABLE.command -> TODO()
+            }
+        }
+    }
+
+    private fun processCommand(update: Update) {
+        val requestMessage = update.message
+        val userId = requestMessage.from.id
+
+        log.run {
+            info("RECEIVED SIMPLE MESSAGE")
+            info("userId : {}", userId)
+            info("\n")
+        }
+
+        if (chatMemberService.exist(userId)) {
+            saveUserInfo(userId)
+        }
+
+        userStates.putIfAbsent(userId, UserStateContainer())
+
+        if (requestMessage.isCommand) {
+            when (requestMessage.text) {
+                BotCommands.START.command -> {
+                    sendStartMessage(requestMessage)
+                    userStates[userId]?.changeState(UNNECESSARY)
+                }
+
+                BotCommands.HELP.command -> {
+                    userStates[userId]?.changeState(UNNECESSARY)
+                    sendHelpMessage(requestMessage)
                 }
 
                 BotCommands.MENU.command -> {
@@ -94,57 +164,24 @@ class MessageHandler @Autowired constructor(
                 }
 
                 BotCommands.REMOVE_HABIT.command -> TODO()
-                BotCommands.EDIT_HABIT.command -> TODO()
                 BotCommands.STATS_TODAY.command -> TODO()
                 BotCommands.STATS_YESTERDAY.command -> TODO()
                 BotCommands.NOTIFICATIONS.command -> TODO()
                 BotCommands.NOTIFICATIONS_ENABLE.command -> TODO()
                 BotCommands.NOTIFICATIONS_DISABLE.command -> TODO()
             }
-        } else {
-//            when (userStates[userId]?.userState) {
-//                UNNECESSARY -> {
-//                    handleLikeEcho(message)
-//                    userStates[userId]?.changeState(UNNECESSARY)
-//                }
-//
-//                ADDING_HABIT_HEADER -> {
-//                    parseHabitHeader(message)
-//                    userStates[userId]?.changeState(ADDING_HABIT_BODY)
-//                }
-//
-//                ADDING_HABIT_BODY -> {
-//                    parseHabitDescription(message)
-//                    userStates[userId]?.changeState(ADDING_HABIT_NOTIFICATION_CRON)
-//                }
-//
-//                ADDING_HABIT_NOTIFICATION_CRON -> {
-//                    parseHabitNotificationCron(message)
-//                    userStates[userId]?.changeState(UNNECESSARY)
-//                }
-//
-//                DELETING_HABIT -> {
-//                    parseHabitName(message)
-//                    userStates[userId]?.changeState(UNNECESSARY)
-//                }
-//
-//                null -> TODO()
-//
-//            }
         }
     }
 
-    private fun processMessage(update: Update) {
-        if (!update.hasMessage()) {
-            return
-        }
-
+    private fun processMultiformTask(update: Update) {
         val requestMessage = update.message
         val userId = requestMessage.from.id
 
-        log.info("RECEIVED MESSAGE!")
-        log.info("userId : {}", userId)
-        log.info("\n")
+        log.run {
+            info("RECEIVED MULTIFORM TASK PROCESS STEP")
+            info("userId : {}", userId)
+            info("\n")
+        }
 
         if (chatMemberService.exist(userId)) {
             saveUserInfo(userId)
@@ -152,75 +189,34 @@ class MessageHandler @Autowired constructor(
 
         userStates.putIfAbsent(userId, UserStateContainer())
 
-        if (requestMessage.isCommand) {
-            when (requestMessage.text) {
-                BotCommands.START.command -> {
-                    sendMessage(requestMessage.chatId, "Добро пожаловать")
-                    userStates[userId]?.changeState(UNNECESSARY)
-                }
-
-                BotCommands.HELP.command -> {
-                    userStates[userId]?.changeState(UNNECESSARY)
-                    sendMessage(requestMessage.chatId, "Используйте кнопки")
-                }
-
-                BotCommands.MENU.command -> {
-                    sendMenuMessage(requestMessage)
-                    userStates[userId]?.changeState(UNNECESSARY)
-                }
-
-                BotCommands.MY_HABITS.command -> {
-                    sendHabits(requestMessage)
-                    userStates[userId]?.changeState(UNNECESSARY)
-                }
-
-                BotCommands.ADD_HABIT.command -> {
-                    sendHabitAdditionForm(requestMessage)
-                    userStates[userId]?.changeState(ADDING_HABIT_HEADER)
-                }
-
-                BotCommands.REMOVE_HABIT.command -> {
-                    sendHabitRemovementForm(requestMessage)
-                    userStates[userId]?.changeState(DELETING_HABIT)
-                }
-
-                BotCommands.EDIT_HABIT.command -> TODO()
-                BotCommands.STATS_TODAY.command -> TODO()
-                BotCommands.STATS_YESTERDAY.command -> TODO()
-                BotCommands.NOTIFICATIONS.command -> TODO()
-                BotCommands.NOTIFICATIONS_ENABLE.command -> TODO()
-                BotCommands.NOTIFICATIONS_DISABLE.command -> TODO()
+        when (userStates[userId]?.userState) {
+            UNNECESSARY -> {
+                handleLikeEcho(requestMessage)
+                userStates[userId]?.changeState(UNNECESSARY)
             }
-        } else {
-            when (userStates[userId]?.userState) {
-                UNNECESSARY -> {
-                    handleLikeEcho(requestMessage)
-                    userStates[userId]?.changeState(UNNECESSARY)
-                }
 
-                ADDING_HABIT_HEADER -> {
-                    parseHabitHeader(requestMessage)
-                    userStates[userId]?.changeState(ADDING_HABIT_BODY)
-                }
-
-                ADDING_HABIT_BODY -> {
-                    parseHabitDescription(requestMessage)
-                    userStates[userId]?.changeState(ADDING_HABIT_NOTIFICATION_CRON)
-                }
-
-                ADDING_HABIT_NOTIFICATION_CRON -> {
-                    parseHabitNotificationCron(requestMessage)
-                    userStates[userId]?.changeState(UNNECESSARY)
-                }
-
-                DELETING_HABIT -> {
-                    parseHabitName(requestMessage)
-                    userStates[userId]?.changeState(UNNECESSARY)
-                }
-
-                null -> TODO()
-
+            ADDING_HABIT_HEADER -> {
+                parseHabitHeader(requestMessage)
+                userStates[userId]?.changeState(ADDING_HABIT_BODY)
             }
+
+            ADDING_HABIT_BODY -> {
+                parseHabitDescription(requestMessage)
+                userStates[userId]?.changeState(ADDING_HABIT_NOTIFICATION_CRON)
+            }
+
+            ADDING_HABIT_NOTIFICATION_CRON -> {
+                parseHabitNotificationCron(requestMessage)
+                userStates[userId]?.changeState(UNNECESSARY)
+            }
+
+            DELETING_HABIT -> {
+                parseHabitName(requestMessage)
+                userStates[userId]?.changeState(UNNECESSARY)
+            }
+
+            null -> TODO()
+
         }
     }
 
@@ -301,35 +297,7 @@ class MessageHandler @Autowired constructor(
         bot.execute(responseMessage)
     }
 
-    private fun sendMenuMessage(requestMessage: Message) {
-        val replyKeyboardMarkup = ReplyKeyboardMarkup.builder().keyboard(
-            listOf(
-                KeyboardRow(
-                    listOf<KeyboardButton>(
-                        KeyboardButton.builder().text("Мои привычки").build(),
-                    )
-                ),
-                KeyboardRow(
-                    listOf<KeyboardButton>(
-                        KeyboardButton.builder().text("Статистика за сегодня").build(),
-                        KeyboardButton.builder().text("Статистика за вчера").build(),
-                    )
-                ),
-                KeyboardRow(
-                    listOf<KeyboardButton>(
-                        KeyboardButton.builder().text("Настройки уведомлений").build()
-                    ),
-                ),
-            )
-        ).build()
 
-        val responseMessage = SendMessage()
-        responseMessage.setChatId(requestMessage.chatId)
-        responseMessage.text = "Выберите действие"
-        responseMessage.replyMarkup = replyKeyboardMarkup
-
-        bot.execute(responseMessage)
-    }
 
     private fun sendHabits(requestMessage: Message) {
         val habits = chatMemberService.getChatMemberHabits(requestMessage.chatId)
@@ -346,10 +314,102 @@ class MessageHandler @Autowired constructor(
         val responseMessage = SendMessage()
         responseMessage.setChatId(requestMessage.chatId)
         responseMessage.text = """
-        Для того, чтобы добавить новую привычку, поочерёдно введите её название и описание
-        
-        В данном сообщении отправтье только название привычки
+            Для того, чтобы добавить новую привычку, поочерёдно введите её название и описание
+            
+            В данном сообщении отправтье только название привычки
         """
+
+        bot.execute(responseMessage)
+    }
+
+    private fun sendStartMessage(requestMessage: Message) {
+        val responseMessage = SendMessage()
+        responseMessage.setChatId(requestMessage.chatId)
+        responseMessage.text = "Добрый день. Для большей информации перейдите во вкладку \"Помощь\""
+        responseMessage.replyMarkup = InlineKeyboardMarkup.builder().keyboard(
+            listOf(
+                listOf<InlineKeyboardButton>(
+                    InlineKeyboardButton.builder()
+                        .text("Помощь")
+                        .callbackData("/help")
+                        .build()
+                ),
+            )
+        ).build()
+
+        bot.execute(responseMessage)
+    }
+
+    private fun sendHelpMessage(requestMessage: Message) {
+        val responseMessage = SendMessage()
+        responseMessage.setChatId(requestMessage.chatId)
+        responseMessage.text = """
+            При помощи данного боты вы можете лучше управлять своей жизнью.
+            На данный момент бот поддерживает возможности:
+            
+            1. Устанавливать напоминания (привычки)
+            2... пока что всё
+            
+            Для начала работы с ботом нужно прописать команду /menu
+            Эта команда - начало для любого действия. 
+            Если в ходе работы что-то идёт не по плану, введите команду /menu
+            
+            Перейдите во вкладку МЕНЮ, чтобы управлять ботом
+        """
+        responseMessage.replyMarkup = InlineKeyboardMarkup.builder().keyboard(
+            listOf(
+                listOf<InlineKeyboardButton>(
+                    InlineKeyboardButton.builder()
+                        .text("Меню")
+                        .callbackData("/menu")
+                        .build()
+                ),
+            )
+        ).build()
+
+        bot.execute(responseMessage)
+    }
+
+    private fun sendMenuMessage(requestMessage: Message) {
+        val responseMessage = SendMessage()
+        responseMessage.setChatId(requestMessage.chatId)
+        responseMessage.text = "Выберите пункт меню"
+        responseMessage.replyMarkup = InlineKeyboardMarkup.builder().keyboard(
+            listOf(
+                listOf<InlineKeyboardButton>(
+                    InlineKeyboardButton.builder()
+                        .text("Мои привычки")
+                        .callbackData("/my_habits")
+                        .build()
+                ),
+                listOf<InlineKeyboardButton>(
+                    InlineKeyboardButton.builder()
+                        .text("Добавить привычку")
+                        .callbackData("/add_habit")
+                        .build(),
+                    InlineKeyboardButton.builder()
+                        .text("Удалить привычку")
+                        .callbackData("/remove_habit")
+                        .build(),
+                ),
+                listOf<InlineKeyboardButton>(
+                    InlineKeyboardButton.builder()
+                        .text("Статистика за сегодня")
+                        .callbackData("/stats_today")
+                        .build(),
+                    InlineKeyboardButton.builder()
+                        .text("Статистика за вчера")
+                        .callbackData("/stats_yesterday")
+                        .build(),
+                ),
+                listOf<InlineKeyboardButton>(
+                    InlineKeyboardButton.builder()
+                        .text("Настройки уведомлений")
+                        .callbackData("/notifications")
+                        .build()
+                ),
+            )
+        ).build()
 
         bot.execute(responseMessage)
     }
