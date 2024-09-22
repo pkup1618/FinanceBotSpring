@@ -1,9 +1,5 @@
 package com.example.demo.entity
 
-import jakarta.persistence.*
-import java.time.DayOfWeek
-
-
 data class Habit(
     val id: Long,
     val chatMemberId: Long,
@@ -13,8 +9,8 @@ data class Habit(
 ) {
     override fun toString(): String {
         return """
-                Название: $name
-                Описание: $description
-                """.trimIndent()
+            Название: $name
+            Описание: $description
+        """
     }
 }

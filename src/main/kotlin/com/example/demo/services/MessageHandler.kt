@@ -21,17 +21,14 @@ import java.util.stream.Collectors
 class MessageHandler @Autowired constructor(
     private val chatMemberService: ChatMemberService,
     private val bot: Bot,
-    private val localeService: LocaleService
 ) : Thread() {
+
+    companion object {
+        private val log: Logger = LoggerFactory.getLogger(MessageHandler::class.java)
+    }
 
     private val userStates: MutableMap<Long, UserStateContainer> = ConcurrentHashMap()
 
-
-    //TODO change on timer task
-    /**
-     * Запускает цикл обработки сообщений, каждые 0.5 секунды
-     * выделяется 1 поток на группу сообщений, пришедших за это время
-     */
     override fun run() {
         while (true) {
             if (!bot.receivedMessages.isEmpty()) {
@@ -51,118 +48,173 @@ class MessageHandler @Autowired constructor(
         }
     }
 
-    /**
-     * Основной метод обработки сообщений (корень всей обработки)
-     * Распознаёт, является ли сообщение командой или зарезервированным
-     * и в соответствии с этим вызывает нужный метод обработки
-     * @param update - сообщение
-     */
+    private fun processInline(update: Update) {
+        if (update.hasCallbackQuery()) {
+            val callback = update.callbackQuery
+            val userId = callback.from.id
+            println(userId)
+
+            if (chatMemberService.exist(userId)) {
+                saveUserInfo(userId)
+            }
+
+            userStates.putIfAbsent(userId, UserStateContainer())
+
+            val requestMessage = callback.message
+
+            when (requestMessage.text) {
+                BotCommands.START.command -> {
+                    sendMessage(requestMessage.chatId, "Добро пожаловать")
+                    userStates[userId]?.changeState(UNNECESSARY)
+                }
+
+                BotCommands.HELP.command -> {
+                    userStates[userId]?.changeState(UNNECESSARY)
+                    sendMessage(requestMessage.chatId, "Используйте кнопки")
+                }
+
+                BotCommands.MENU.command -> {
+                    sendMenuMessage(requestMessage)
+                    userStates[userId]?.changeState(UNNECESSARY)
+                }
+
+                BotCommands.MY_HABITS.command -> {
+                    sendHabits(requestMessage)
+                    userStates[userId]?.changeState(UNNECESSARY)
+                }
+
+                BotCommands.ADD_HABIT.command -> {
+                    sendHabitAdditionForm(requestMessage)
+                    userStates[userId]?.changeState(ADDING_HABIT_HEADER)
+                }
+
+                BotCommands.REMOVE_HABIT.command -> {
+                    sendHabitRemovementForm(requestMessage)
+                    userStates[userId]?.changeState(DELETING_HABIT)
+                }
+
+                BotCommands.REMOVE_HABIT.command -> TODO()
+                BotCommands.EDIT_HABIT.command -> TODO()
+                BotCommands.STATS_TODAY.command -> TODO()
+                BotCommands.STATS_YESTERDAY.command -> TODO()
+                BotCommands.NOTIFICATIONS.command -> TODO()
+                BotCommands.NOTIFICATIONS_ENABLE.command -> TODO()
+                BotCommands.NOTIFICATIONS_DISABLE.command -> TODO()
+            }
+        } else {
+//            when (userStates[userId]?.userState) {
+//                UNNECESSARY -> {
+//                    handleLikeEcho(message)
+//                    userStates[userId]?.changeState(UNNECESSARY)
+//                }
+//
+//                ADDING_HABIT_HEADER -> {
+//                    parseHabitHeader(message)
+//                    userStates[userId]?.changeState(ADDING_HABIT_BODY)
+//                }
+//
+//                ADDING_HABIT_BODY -> {
+//                    parseHabitDescription(message)
+//                    userStates[userId]?.changeState(ADDING_HABIT_NOTIFICATION_CRON)
+//                }
+//
+//                ADDING_HABIT_NOTIFICATION_CRON -> {
+//                    parseHabitNotificationCron(message)
+//                    userStates[userId]?.changeState(UNNECESSARY)
+//                }
+//
+//                DELETING_HABIT -> {
+//                    parseHabitName(message)
+//                    userStates[userId]?.changeState(UNNECESSARY)
+//                }
+//
+//                null -> TODO()
+//
+//            }
+        }
+    }
+
     private fun processMessage(update: Update) {
         if (!update.hasMessage()) {
             return
         }
 
-        val message = update.message
-        val chatId = message.chatId
-        val userId = message.from.id
+        val requestMessage = update.message
+        val userId = requestMessage.from.id
 
         log.info("RECEIVED MESSAGE!")
-        log.info("chatId : {}", chatId)
         log.info("userId : {}", userId)
         log.info("\n")
 
-        if (chatMemberService.exist(chatId)) {
+        if (chatMemberService.exist(userId)) {
             saveUserInfo(userId)
         }
 
         userStates.putIfAbsent(userId, UserStateContainer())
-        val locale = chatMemberService.findById(userId).locale
 
-
-        if (message.isCommand) {
-            when (parseCommand(update)) {
-                BotCommands.START -> {
-                    sendMessage(userId, locale, "startMessage")
+        if (requestMessage.isCommand) {
+            when (requestMessage.text) {
+                BotCommands.START.command -> {
+                    sendMessage(requestMessage.chatId, "Добро пожаловать")
                     userStates[userId]?.changeState(UNNECESSARY)
                 }
 
-                BotCommands.HELP -> {
-                    sendMessage(userId, locale, "helpMessage")
+                BotCommands.HELP.command -> {
+                    userStates[userId]?.changeState(UNNECESSARY)
+                    sendMessage(requestMessage.chatId, "Используйте кнопки")
+                }
+
+                BotCommands.MENU.command -> {
+                    sendMenuMessage(requestMessage)
                     userStates[userId]?.changeState(UNNECESSARY)
                 }
 
-                BotCommands.LOCALE -> {
-                    sendChangeLocaleMessage(userId, locale)
+                BotCommands.MY_HABITS.command -> {
+                    sendHabits(requestMessage)
                     userStates[userId]?.changeState(UNNECESSARY)
                 }
 
-                BotCommands.SET_RU_LOCALE -> {
-                    changeLocale(userId, "ru")
-                    var newLocale = "ru"
-                    sendMessage(userId, newLocale, "locale.changeSuccess")
-                    userStates[userId]?.changeState(UNNECESSARY)
-                }
-
-                BotCommands.SET_EN_LOCALE -> {
-                    changeLocale(userId, "en")
-                    var newLocale = "en"
-                    sendMessage(userId, locale, "locale.changeSuccess")
-                    userStates[userId]?.changeState(UNNECESSARY)
-                }
-
-                BotCommands.MENU -> {
-                    sendMenuMessage(userId, locale)
-                    userStates[userId]?.changeState(UNNECESSARY)
-                }
-
-                BotCommands.MY_HABITS -> {
-                    sendHabits(userId, locale)
-                    userStates[userId]?.changeState(UNNECESSARY)
-                }
-
-                BotCommands.ADD_HABIT -> {
-                    sendHabitAdditionForm(userId, locale)
+                BotCommands.ADD_HABIT.command -> {
+                    sendHabitAdditionForm(requestMessage)
                     userStates[userId]?.changeState(ADDING_HABIT_HEADER)
                 }
 
-                BotCommands.REMOVE_HABIT -> {
-                    sendHabitRemovementForm(message)
+                BotCommands.REMOVE_HABIT.command -> {
+                    sendHabitRemovementForm(requestMessage)
                     userStates[userId]?.changeState(DELETING_HABIT)
                 }
 
-                BotCommands.REMOVE_HABIT -> TODO()
-                BotCommands.EDIT_HABIT -> TODO()
-                BotCommands.STATS_TODAY -> TODO()
-                BotCommands.STATS_YESTERDAY -> TODO()
-                BotCommands.NOTIFICATIONS -> TODO()
-                BotCommands.NOTIFICATIONS_ENABLE -> TODO()
-                BotCommands.NOTIFICATIONS_DISABLE -> TODO()
-                BotCommands.UNKNOWN -> TODO()
+                BotCommands.EDIT_HABIT.command -> TODO()
+                BotCommands.STATS_TODAY.command -> TODO()
+                BotCommands.STATS_YESTERDAY.command -> TODO()
+                BotCommands.NOTIFICATIONS.command -> TODO()
+                BotCommands.NOTIFICATIONS_ENABLE.command -> TODO()
+                BotCommands.NOTIFICATIONS_DISABLE.command -> TODO()
             }
         } else {
             when (userStates[userId]?.userState) {
                 UNNECESSARY -> {
-                    handleLikeEcho(message)
+                    handleLikeEcho(requestMessage)
                     userStates[userId]?.changeState(UNNECESSARY)
                 }
 
                 ADDING_HABIT_HEADER -> {
-                    parseHabitHeader(message)
+                    parseHabitHeader(requestMessage)
                     userStates[userId]?.changeState(ADDING_HABIT_BODY)
                 }
 
                 ADDING_HABIT_BODY -> {
-                    parseHabitDescription(message)
+                    parseHabitDescription(requestMessage)
                     userStates[userId]?.changeState(ADDING_HABIT_NOTIFICATION_CRON)
                 }
 
                 ADDING_HABIT_NOTIFICATION_CRON -> {
-                    parseHabitNotificationCron(message)
+                    parseHabitNotificationCron(requestMessage)
                     userStates[userId]?.changeState(UNNECESSARY)
                 }
 
                 DELETING_HABIT -> {
-                    parseHabitName(message)
+                    parseHabitName(requestMessage)
                     userStates[userId]?.changeState(UNNECESSARY)
                 }
 
@@ -172,154 +224,84 @@ class MessageHandler @Autowired constructor(
         }
     }
 
+    private fun sendHabitRemovementForm(requestMessage: Message) {
+        val responseMessage = SendMessage()
+        responseMessage.setChatId(requestMessage.chatId)
+        responseMessage.text = """
+            Для того, чтобы удалить привычку, введите название привычки.  
+            Привычка с данным названием будет удалена
+        """
 
-
-
-    private fun sendHabitRemovementForm(message: Message) {
-        val text =
-"""
-Для того, чтобы удалить привычку, введите название привычки.  
-
-Привычка с данным названием будет удалена
-"""
-        val answer = SendMessage()
-        answer.setChatId(message.chatId)
-        answer.text = text
-
-        bot.execute(answer)
-
-        sendHabits(message.chatId, locale = "ru")
+        bot.execute(responseMessage)
+        sendHabits(requestMessage)
     }
 
-    private fun parseHabitHeader(message: Message) {
-        userStates[message.chatId]?.habitHeader = message.text
-        userStates[message.chatId]?.userState = ADDING_HABIT_BODY
+    private fun parseHabitHeader(requestMessage: Message) {
+        userStates[requestMessage.chatId]?.habitName = requestMessage.text
+        userStates[requestMessage.chatId]?.userState = ADDING_HABIT_BODY
 
-        val text =
-            """
-            Теперь отправьте только описание привычки
-            """
+        val responseMessage = SendMessage()
+        responseMessage.setChatId(requestMessage.chatId)
+        responseMessage.text = """
+            Теперь отправьте описание привычки
+        """
 
-        val answer = SendMessage()
-        answer.setChatId(message.chatId)
-        answer.text = text
-
-        bot.execute(answer)
+        bot.execute(responseMessage)
     }
 
-    private fun parseHabitDescription(message: Message) {
-        userStates[message.chatId]?.habitDescription = message.text
-        userStates[message.chatId]?.userState = ADDING_HABIT_BODY
+    private fun parseHabitDescription(requestMessage: Message) {
+        userStates[requestMessage.chatId]?.habitDescription = requestMessage.text
+        userStates[requestMessage.chatId]?.userState = ADDING_HABIT_BODY
 
-        val text =
-            """
+        val responseMessage = SendMessage()
+        responseMessage.setChatId(requestMessage.chatId)
+        responseMessage.text = """
             Теперь отправьте время отправки привычки в формате CRON
             
-            СЕК МИН ЧАС МЕС ГОД ДЕНЬНЕ_ДЕЛИ
-            """
+            СЕК МИН ЧАС МЕС ГОД ДЕНЬ_НЕДЕЛИ
+        """
 
-        val answer = SendMessage()
-        answer.setChatId(message.chatId)
-        answer.text = text
-
-        bot.execute(answer)
+        bot.execute(responseMessage)
     }
 
-    private fun parseHabitNotificationCron(message: Message) {
+    private fun parseHabitNotificationCron(requestMessage: Message) {
+        userStates[requestMessage.chatId]?.notifictaionCron = requestMessage.text
+        userStates[requestMessage.chatId]?.userState = UNNECESSARY
 
-        userStates[message.chatId]?.notifictaionCron = message.text
-        userStates[message.chatId]?.userState = ADDING_HABIT_BODY
+        chatMemberService.addHabit(requestMessage.chatId, userStates[requestMessage.chatId])
 
-        chatMemberService.addHabit(message.chatId, userStates[message.chatId])
+        val responseMessage = SendMessage()
+        responseMessage.setChatId(requestMessage.chatId)
+        responseMessage.text = "Привычка сохранена"
 
-        val text = "привычка сохранена"
-
-        val answer = SendMessage()
-        answer.setChatId(message.chatId)
-        answer.text = text
-
-        bot.execute(answer)
+        bot.execute(responseMessage)
     }
 
-    private fun parseHabitName(message: Message) {
-        val habitName = message.text
-        chatMemberService.deleteHabitByName(message.chatId, habitName)
+    private fun parseHabitName(requestMessage: Message) {
+        val habitName = requestMessage.text
+        chatMemberService.deleteHabitByName(requestMessage.chatId, habitName)
 
-        val answer = SendMessage()
-        answer.setChatId(message.chatId)
-        answer.text = """
-            Привычка удалена
-        """.trimIndent()
+        val responseMessage = SendMessage()
+        responseMessage.setChatId(requestMessage.chatId)
+        responseMessage.text = "Привычка удалена"
 
-        bot.execute(answer)
+        bot.execute(responseMessage)
     }
 
     private fun saveUserInfo(id: Long) {
-        val chatMember = ChatMember(id, "ru") //todo make it changeable
+        val chatMember = ChatMember(id)
         chatMemberService.save(chatMember)
     }
 
-    /**
-     * Метод установки локализации пользователю
-     * @param userId id пользователя
-     * @param locale локализация (ru / en)
-     */
-    private fun changeLocale(userId: Long, locale: String) {
-        chatMemberService.changeLocale(userId, locale)
+    private fun sendMessage(userId: Long, messageText: String) {
+        val responseMessage = SendMessage()
+        responseMessage.setChatId(userId)
+        responseMessage.text = messageText
+
+        bot.execute(responseMessage)
     }
 
-    /**
-     * Метод отправки простого текстового сообщения
-     * @param chatId чат, в который отправляем сообщение
-     * @param locale на каком языке
-     * @param message текст сообщения
-     */
-    private fun sendMessage(chatId: Long, locale: String, message: String) {
-        val answer = SendMessage()
-        answer.text = localeService.getMessage(message, locale)
-        answer.setChatId(chatId)
-
-        try {
-            bot.execute(answer)
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
-    }
-
-    /**
-     * Отправляет текстовое сообщение с просьбой сменить язык
-     * и 2 кнопки, с помощью которых можно выбрать язык
-     * @param chatId идентификатор пользователя
-     * @param locale на каком языке отправлять сообщение
-     */
-    private fun sendChangeLocaleMessage(chatId: Long, locale: String) {
-        val keyboardRows = ArrayList<KeyboardRow>()
-        val buttons = ArrayList<KeyboardButton>()
-
-        val ruLocaleButton = KeyboardButton.builder().text("RU \uD83C\uDDF7\uD83C\uDDFA").build()
-        val enLocaleButton = KeyboardButton.builder().text("EN \uD83C\uDDFA\uD83C\uDDF8").build()
-
-        buttons.add(ruLocaleButton)
-        buttons.add(enLocaleButton)
-
-        keyboardRows.add(KeyboardRow(buttons))
-
-        val replyKeyboardMarkup = ReplyKeyboardMarkup.builder().keyboard(keyboardRows).build()
-
-        val message = SendMessage()
-
-        message.replyMarkup = replyKeyboardMarkup
-        message.setChatId(chatId)
-        message.text = localeService.getMessage("locale.chooseLanguage", locale)
-
-        try {
-            bot.execute(message)
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
-    }
-
-    private fun sendMenuMessage(chatId: Long, locale: String) {
+    private fun sendMenuMessage(requestMessage: Message) {
         val keyboard = ArrayList<KeyboardRow>()
 
         val row1 = ArrayList<KeyboardButton>()
@@ -342,139 +324,46 @@ class MessageHandler @Autowired constructor(
 
         val replyKeyboardMarkup = ReplyKeyboardMarkup.builder().keyboard(keyboard).build()
 
-        val message = SendMessage()
-        message.replyMarkup = replyKeyboardMarkup
-        message.setChatId(chatId)
-        message.text = localeService.getMessage("locale.chooseLanguage", locale)
+        val responseMessage = SendMessage()
+        responseMessage.replyMarkup = replyKeyboardMarkup
+        responseMessage.setChatId(requestMessage.chatId)
+        responseMessage.text = "Выберите действие"
 
         try {
-            bot.execute(message)
+            bot.execute(responseMessage)
         } catch (e: Exception) {
             e.printStackTrace()
         }
     }
 
+    private fun sendHabits(requestMessage: Message) {
+        val habits = chatMemberService.getChatMemberHabits(requestMessage.chatId)
+        val habitsTextView = habits.stream().map { obj: Habit -> obj.toString() }.collect(Collectors.joining("\n"))
 
+        val responseMessage = SendMessage()
+        responseMessage.setChatId(requestMessage.chatId)
+        responseMessage.text = habitsTextView
 
-    private fun sendHabits(userId: Long, locale: String) {
-        val habits = chatMemberService.getChatMemberHabits(userId)
-        val result = habits.stream()
-            .map { obj: Habit -> obj.toString() }
-            .collect(Collectors.joining("\n"))
-
-        val message = SendMessage()
-        message.setChatId(userId)
-        message.text = result
-
-        try {
-            bot.execute(message)
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
+        bot.execute(responseMessage)
     }
 
-    private fun sendHabitAdditionForm(userId: Long, locale: String) {
-        val text =
-"""
-Для того, чтобы добавить новую привычку, поочерёдно введите её название и описание
+    private fun sendHabitAdditionForm(requestMessage: Message) {
+        val responseMessage = SendMessage()
+        responseMessage.setChatId(requestMessage.chatId)
+        responseMessage.text = """
+        Для того, чтобы добавить новую привычку, поочерёдно введите её название и описание
+        
+        В данном сообщении отправтье только название привычки
+        """
 
-В данном сообщении отправтье только название привычки
-"""
-        val message = SendMessage()
-        message.setChatId(userId)
-        message.text = text
-
-        bot.execute(message)
+        bot.execute(responseMessage)
     }
 
-    private fun parseCommand(update: Update): BotCommands {
-        val message = update.message
-        val text = message.text
+    private fun handleLikeEcho(requestMessage: Message) {
+        val reponseMessage = SendMessage()
+        reponseMessage.setChatId(requestMessage.chatId)
+        reponseMessage.text = requestMessage.text
 
-        return when (text) {
-            "/start" -> {
-                BotCommands.START
-            }
-
-            "/help" -> {
-                BotCommands.HELP
-            }
-
-            "/locale" -> {
-                BotCommands.LOCALE
-            }
-
-            "/set_ru_locale \uD83C\uDDF7\uD83C\uDDFA" -> {
-                BotCommands.SET_RU_LOCALE
-            }
-
-            "/set_en_locale \uD83C\uDDFA\uD83C\uDDF8" -> {
-                BotCommands.SET_EN_LOCALE
-            }
-
-            "/menu" -> {
-                BotCommands.MENU
-            }
-
-            "/my_habits" -> {
-                BotCommands.MY_HABITS
-            }
-
-            "/add_habit" -> {
-                BotCommands.ADD_HABIT
-            }
-
-            "/remove_habit" -> {
-                BotCommands.REMOVE_HABIT
-            }
-
-            "/edit_habit" -> {
-                BotCommands.EDIT_HABIT
-            }
-
-            "/stats_today" -> {
-                BotCommands.STATS_TODAY
-            }
-
-            "/stats_yesterday" -> {
-                BotCommands.STATS_YESTERDAY
-            }
-
-            "/notifications" -> {
-                BotCommands.NOTIFICATIONS
-            }
-
-            "/notifications_enable" -> {
-                BotCommands.NOTIFICATIONS_ENABLE
-            }
-
-            "/notifications_disable" -> {
-                BotCommands.NOTIFICATIONS_DISABLE
-            }
-
-            else -> {
-                BotCommands.UNKNOWN
-            }
-        }
-    }
-
-    /**
-     * Отвечает на сообщение тем же текстом
-     * @param message сообщение
-     */
-    private fun handleLikeEcho(message: Message) {
-        val answer = SendMessage()
-        answer.text = message.text
-        answer.setChatId(message.chatId)
-
-        try {
-            bot.execute(answer)
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
-    }
-
-    companion object {
-        private val log: Logger = LoggerFactory.getLogger(MessageHandler::class.java)
+        bot.execute(reponseMessage)
     }
 }

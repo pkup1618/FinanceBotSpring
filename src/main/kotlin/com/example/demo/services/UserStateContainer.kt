@@ -3,7 +3,7 @@ package com.example.demo.services
 class UserStateContainer {
     var userState: UserState = UserState.UNNECESSARY
 
-    var habitHeader: String? = null
+    var habitName: String? = null
     var habitDescription: String? = null
     var notifictaionCron: String? = null
 

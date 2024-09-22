@@ -11,6 +11,7 @@ import java.util.*
 class PropertiesService {
     fun loadProperties(propsDir: String): Properties {
         val properties = Properties()
+
         try {
             properties.load(FileInputStream(propsDir))
         } catch (e: FileNotFoundException) {

@@ -3,9 +3,7 @@ package com.example.demo.services
 import com.example.demo.entity.ChatMember
 import com.example.demo.entity.Habit
 import org.springframework.beans.factory.annotation.Autowired
-import org.springframework.expression.ExpressionException
 import org.springframework.jdbc.core.JdbcTemplate
-import org.springframework.jdbc.core.namedparam.MapSqlParameterSource
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
@@ -17,35 +15,14 @@ import org.springframework.transaction.annotation.Transactional
 class ChatMemberService @Autowired constructor(
     private val jdbcTemplate: JdbcTemplate
 ) {
-
-    /**
-     * Метод установки локализации
-     * @param id - id пользователя
-     * @param locale - локаль, которую надо установить
-     */
-    @Transactional
-    fun changeLocale(id: Long, locale: String) {
-
-        val prettySql =
-            """
-            UPDATE chat_member
-            SET locale = '$locale'
-            WHERE id = $id
-            """
-
-        jdbcTemplate.update(prettySql)
-    }
-
     @Transactional
     fun exist(id: Long): Boolean {
-
-        val prettySql =
-            """
+        val prettySql = """
             SELECT * FROM chat_member WHERE id = $id
-            """
+        """
 
         val chatMember: List<ChatMember> = jdbcTemplate.query(prettySql) { rs, _ ->
-            ChatMember(rs.getLong("id"), rs.getString("locale"))
+            ChatMember(rs.getLong("id"))
         }
 
         return chatMember.isEmpty()
@@ -58,42 +35,18 @@ class ChatMemberService @Autowired constructor(
      */
     @Transactional
     fun save(chatMember: ChatMember) {
-        val prettySql =
-            """
-            INSERT INTO chat_member VALUES (${chatMember.id}, 'ru') 
-            """
+        val prettySql = """
+            INSERT INTO chat_member VALUES (${chatMember.id}) 
+        """
 
         jdbcTemplate.update(prettySql)
     }
 
     fun getChatMemberHabits(id: Long): List<Habit> {
-
-        val prettySql =
-            """
+        val prettySql = """
             SELECT * FROM habit 
             WHERE chatmember_id = $id
-            """
-
-        val habits: List<Habit> = jdbcTemplate.query(prettySql)
-        { rs, _ ->
-            Habit(
-                rs.getLong("id"),
-                rs.getLong("chatmember_id"),
-                rs.getString("name"),
-                rs.getString("description")
-            )
-        }
-
-        return habits
-    }
-
-    fun getAllTrackingHabits(): List<Habit> {
-
-        val prettySql =
-            """
-            SELECT * FROM habit 
-            WHERE notification_cron IS NOT NULL
-            """
+        """
 
         val habits: List<Habit> = jdbcTemplate.query(prettySql)
         { rs, _ ->
@@ -109,44 +62,45 @@ class ChatMemberService @Autowired constructor(
         return habits
     }
 
-    /**
-     * Метод для поиска пользователя в базе данных
-     * @param id - id пользователя
-     */
-    fun findById(id: Long): ChatMember {
+    fun getAllTrackingHabits(): List<Habit> {
+        val prettySql = """
+            SELECT * FROM habit 
+            WHERE notification_cron IS NOT NULL
+        """
 
-        val prettySql =
-            """
-            SELECT * FROM chat_member
-            WHERE id = $id
-            """
-
-        val chatMember: ChatMember? = jdbcTemplate.queryForObject(prettySql)
+        val habits: List<Habit> = jdbcTemplate.query(prettySql)
         { rs, _ ->
-            ChatMember(rs.getLong("id"), rs.getString("locale"))
+            Habit(
+                rs.getLong("id"),
+                rs.getLong("chatmember_id"),
+                rs.getString("name"),
+                rs.getString("description"),
+                rs.getString("notification_cron")
+            )
         }
 
-        return chatMember ?: throw ExpressionException("Такая запись отсутствует в базе данных")
+        return habits
     }
 
-    fun addHabit(id: Long, userStateContainer: UserStateContainer?) {
-
-        val prettySql =
-            """
-            INSERT INTO habit (chatmember_id, days, description, name, notification_cron) 
-            VALUES ($id, NULL, '${userStateContainer?.habitDescription}', '${userStateContainer?.habitHeader}', '${userStateContainer?.notifictaionCron}')    
-            """
+    fun addHabit(userId: Long, userStateContainer: UserStateContainer?) {
+        val prettySql = """
+            INSERT INTO habit (description, name, chatmember_id, notification_cron) 
+            VALUES (
+                '${userStateContainer?.habitDescription}',
+                '${userStateContainer?.habitName}',
+                '${userId}',
+                '${userStateContainer?.notifictaionCron}'
+            )
+        """
 
         jdbcTemplate.update(prettySql)
     }
 
     fun deleteHabitByName(id: Long?, name: String?) {
-
-        val prettySql =
-            """
+        val prettySql = """
             DELETE FROM habit
             WHERE chatmember_id = $id AND name = '$name'
-            """
+        """
 
         jdbcTemplate.update(prettySql)
     }
