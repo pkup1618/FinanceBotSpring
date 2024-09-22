@@ -8,9 +8,6 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
 
-/**
- * Сервис (обёртка над репозиторием) для всех взаимодействий с базой данных
- */
 @Service
 class ChatMemberService @Autowired constructor(
     private val jdbcTemplate: JdbcTemplate
@@ -28,11 +25,6 @@ class ChatMemberService @Autowired constructor(
         return chatMember.isEmpty()
     }
 
-    /**
-     * Метод для добавления пользователя в базу данных
-     * (По умолчанию добавляются пользователи с русской локализацией)
-     * @param chatMember - пользователь, id нужно установить самостоятельно, взяв в telegram
-     */
     @Transactional
     fun save(chatMember: ChatMember) {
         val prettySql = """

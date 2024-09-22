@@ -17,29 +17,6 @@ import javax.sql.DataSource
 @Configuration
 open class PersistenceConfig @Autowired constructor(private val propertiesService: PropertiesService) {
 
-//    @Bean
-//    open fun modelTransactionManager(): PlatformTransactionManager {
-//        return JpaTransactionManager(Objects.requireNonNull(modelEntityManagerFactory().getObject()))
-//    }
-//
-//    @Bean
-//    open fun modelEntityManagerFactory(): LocalContainerEntityManagerFactoryBean {
-//        val vendorAdapter : HibernateJpaVendorAdapter = HibernateJpaVendorAdapter()
-//        vendorAdapter.setGenerateDdl(true)
-//
-//        val factoryBean = LocalContainerEntityManagerFactoryBean()
-//        val prop = Properties()
-//        prop.setProperty("hibernate.dialect", "org.hibernate.dialect.PostgreSQLDialect")
-//        prop.setProperty("hibernate.ddl-auto", "update") //create on first start, update on second
-//        factoryBean.setJpaProperties(prop)
-//
-//        factoryBean.dataSource = modelDataSource()
-//        factoryBean.jpaVendorAdapter = vendorAdapter
-//        factoryBean.setPackagesToScan("com.example.demo.data")
-//
-//        return factoryBean
-//    }
-
     @Bean
     @Primary
     open fun modelDataSource(): DataSource {
@@ -52,8 +29,5 @@ open class PersistenceConfig @Autowired constructor(private val propertiesServic
             .url(dbConnectionInfo.getProperty("db_url"))
             .driverClassName("org.postgresql.Driver")
             .build()
-
-
-        //todo это работает неправильно. Мне нужно загружать данные во время работы, а не компиляции
     }
 }

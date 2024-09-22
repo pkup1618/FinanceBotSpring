@@ -302,38 +302,33 @@ class MessageHandler @Autowired constructor(
     }
 
     private fun sendMenuMessage(requestMessage: Message) {
-        val keyboard = ArrayList<KeyboardRow>()
-
-        val row1 = ArrayList<KeyboardButton>()
-        val myHabitsButton = KeyboardButton.builder().text("Мои привычки").build()
-        row1.add(myHabitsButton)
-
-        val row2 = ArrayList<KeyboardButton>()
-        val statsTodayButton = KeyboardButton.builder().text("Статистика за сегодня").build()
-        row2.add(statsTodayButton)
-        val statsYesterdayButton = KeyboardButton.builder().text("Статистика за вчера").build()
-        row2.add(statsYesterdayButton)
-
-        val row3 = ArrayList<KeyboardButton>()
-        val alertsSettingsButton = KeyboardButton.builder().text("Настройки уведомлений").build()
-        row3.add(alertsSettingsButton)
-
-        keyboard.add(KeyboardRow(row1))
-        keyboard.add(KeyboardRow(row2))
-        keyboard.add(KeyboardRow(row3))
-
-        val replyKeyboardMarkup = ReplyKeyboardMarkup.builder().keyboard(keyboard).build()
+        val replyKeyboardMarkup = ReplyKeyboardMarkup.builder().keyboard(
+            listOf(
+                KeyboardRow(
+                    listOf<KeyboardButton>(
+                        KeyboardButton.builder().text("Мои привычки").build(),
+                    )
+                ),
+                KeyboardRow(
+                    listOf<KeyboardButton>(
+                        KeyboardButton.builder().text("Статистика за сегодня").build(),
+                        KeyboardButton.builder().text("Статистика за вчера").build(),
+                    )
+                ),
+                KeyboardRow(
+                    listOf<KeyboardButton>(
+                        KeyboardButton.builder().text("Настройки уведомлений").build()
+                    ),
+                ),
+            )
+        ).build()
 
         val responseMessage = SendMessage()
-        responseMessage.replyMarkup = replyKeyboardMarkup
         responseMessage.setChatId(requestMessage.chatId)
         responseMessage.text = "Выберите действие"
+        responseMessage.replyMarkup = replyKeyboardMarkup
 
-        try {
-            bot.execute(responseMessage)
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
+        bot.execute(responseMessage)
     }
 
     private fun sendHabits(requestMessage: Message) {
