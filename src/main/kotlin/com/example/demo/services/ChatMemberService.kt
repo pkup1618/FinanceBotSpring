@@ -37,14 +37,14 @@ class ChatMemberService @Autowired constructor(
     fun getChatMemberHabits(id: Long): List<Habit> {
         val prettySql = """
             SELECT * FROM habit 
-            WHERE chatmember_id = $id
+            WHERE chat_member_id = $id
         """
 
         val habits: List<Habit> = jdbcTemplate.query(prettySql)
         { rs, _ ->
             Habit(
                 rs.getLong("id"),
-                rs.getLong("chatmember_id"),
+                rs.getLong("chat_member_id"),
                 rs.getString("name"),
                 rs.getString("description"),
                 rs.getString("notification_cron")
@@ -64,7 +64,7 @@ class ChatMemberService @Autowired constructor(
         { rs, _ ->
             Habit(
                 rs.getLong("id"),
-                rs.getLong("chatmember_id"),
+                rs.getLong("chat_member_id"),
                 rs.getString("name"),
                 rs.getString("description"),
                 rs.getString("notification_cron")
@@ -76,7 +76,7 @@ class ChatMemberService @Autowired constructor(
 
     fun addHabit(userId: Long, userStateContainer: UserStateContainer?) {
         val prettySql = """
-            INSERT INTO habit (description, name, chatmember_id, notification_cron) 
+            INSERT INTO habit (description, name, chat_member_id, notification_cron) 
             VALUES (
                 '${userStateContainer?.habitDescription}',
                 '${userStateContainer?.habitName}',
@@ -91,7 +91,7 @@ class ChatMemberService @Autowired constructor(
     fun deleteHabitByName(id: Long?, name: String?) {
         val prettySql = """
             DELETE FROM habit
-            WHERE chatmember_id = $id AND name = '$name'
+            WHERE chat_member_id = $id AND name = '$name'
         """
 
         jdbcTemplate.update(prettySql)

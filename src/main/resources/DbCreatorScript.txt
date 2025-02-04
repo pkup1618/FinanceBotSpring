@@ -1,0 +1,26 @@
+-- DB CREATION
+
+CREATE DATABASE "HabitsBotProjectDatabase"
+    WITH
+    OWNER = postgres
+    ENCODING = 'UTF8'
+    LOCALE_PROVIDER = 'libc'
+    CONNECTION LIMIT = -1
+    IS_TEMPLATE = False;
+
+
+
+
+-- TABLES CREATION
+
+create table chat_member(
+    id integer primary key
+);
+
+create table habit(
+    id integer primary key,
+    chat_member_id integer references chat_member(id),
+    name varchar(255) not null,
+    description text not null,
+    notification_cron varchar(255)
+);

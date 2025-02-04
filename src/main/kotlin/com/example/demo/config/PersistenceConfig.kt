@@ -27,7 +27,7 @@ open class PersistenceConfig @Autowired constructor(private val propertiesServic
             .username(dbConnectionInfo.getProperty("username"))
             .password(dbConnectionInfo.getProperty("password"))
             .url(dbConnectionInfo.getProperty("db_url"))
-            .driverClassName("org.postgresql.Driver")
+            .driverClassName(dbConnectionInfo.getProperty("driver"))
             .build()
     }
 }

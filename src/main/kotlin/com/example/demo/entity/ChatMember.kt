@@ -1,3 +1,5 @@
 package com.example.demo.entity
 
-data class ChatMember(val id: Long)
+data class ChatMember(
+    val id: Long
+)
